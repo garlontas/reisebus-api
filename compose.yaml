@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: reisebus-postgres-dev
+    environment:
+      POSTGRES_DB: reisebus_dev
+      POSTGRES_USER: reisebus
+      POSTGRES_PASSWORD: reisebus
+    ports:
+      - "5432:5432"
+    volumes:
+      - reisebus-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U reisebus"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  reisebus-postgres-data:
+

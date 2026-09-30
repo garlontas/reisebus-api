@@ -1,0 +1,6 @@
+spring:
+  liquibase:
+    contexts: test
+app:
+  tenancy:
+    migrate-on-startup: false

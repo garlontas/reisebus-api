@@ -1,0 +1,16 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/app
+    username: app
+    password: app
+  jpa:
+    properties:
+      hibernate:
+        order_updates: true
+        jdbc:
+          batch_size: 10
+  liquibase:
+    contexts: dev
+app:
+  tenancy:
+    migrate-on-startup: true

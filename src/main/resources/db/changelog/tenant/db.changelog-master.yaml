@@ -1,0 +1,4 @@
+databaseChangeLog:
+  - include:
+      file: db/changelog/tenant/202609300001-initial-tenant-schema.sql
+

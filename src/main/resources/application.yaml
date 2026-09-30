@@ -1,0 +1,18 @@
+spring:
+  application:
+    name: reisebus-api
+  datasource:
+  # url/username/password per environment
+  jpa:
+    open-in-view: false
+    hibernate.ddl-auto: none
+  liquibase:
+    enabled: true
+    change-log: classpath:db/changelog/db.changelog-master.yaml
+    contexts: prod
+  modulith:
+    events:
+      republish-outstanding-events-on-restart: true
+app:
+  tenancy:
+    migrate-on-startup: false
