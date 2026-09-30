@@ -1,0 +1,2533 @@
+openapi: 3.1.0
+info:
+  title: Busreisen SaaS REST API
+  version: 1.0.0
+  description: >
+    REST API for a multi-tenant bus travel SaaS platform.
+
+    The API has three surfaces:
+    - Platform onboarding endpoints
+    - Public shop endpoints
+    - Authenticated tenant endpoints for admins, staff and drivers
+
+servers:
+  - url: https://api.example.com/v1
+    description: Production API
+  - url: http://localhost:8000/v1
+    description: Local development
+
+tags:
+  - name: Platform
+  - name: Auth
+  - name: Self
+  - name: Tenant
+  - name: Users
+  - name: Travels
+  - name: Travel Series
+  - name: Bookings
+  - name: Passengers
+  - name: Dashboard
+  - name: Shop
+  - name: Webhooks
+  - name: Operational
+
+security:
+  - bearerAuth: []
+
+paths:
+  /platform/signups:
+    post:
+      tags: [Platform]
+      summary: Start operator onboarding
+      description: Creates a Stripe Checkout session for a new operator subscription.
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SignupCreate"
+      responses:
+        "201":
+          description: Signup created
+          headers:
+            Location:
+              $ref: "#/components/headers/Location"
+            X-Request-Id:
+              $ref: "#/components/headers/XRequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SignupCreateResponse"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /platform/signups/{id}:
+    get:
+      tags: [Platform]
+      summary: Get signup provisioning status
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/UuidPathId"
+        - name: token
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Signup status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SignupStatus"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /platform/slug-availability:
+    get:
+      tags: [Platform]
+      summary: Check shop slug availability
+      security: []
+      parameters:
+        - name: slug
+          in: query
+          required: true
+          schema:
+            $ref: "#/components/schemas/Slug"
+      responses:
+        "200":
+          description: Availability result
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [slug, available]
+                properties:
+                  slug:
+                    $ref: "#/components/schemas/Slug"
+                  available:
+                    type: boolean
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /webhooks/stripe:
+    post:
+      tags: [Webhooks]
+      summary: Receive Stripe webhook events
+      security: []
+      parameters:
+        - name: Stripe-Signature
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "200":
+          description: Event accepted
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /auth/tokens:
+    post:
+      tags: [Auth]
+      summary: Login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "201":
+          description: Access token created
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+              description: HttpOnly refresh token cookie
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenResponse"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /auth/tokens/refresh:
+    post:
+      tags: [Auth]
+      summary: Refresh access token
+      security:
+        - refreshCookieAuth: []
+      responses:
+        "201":
+          description: New access token created
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+              description: Rotated HttpOnly refresh token cookie
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenResponse"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /auth/tokens/current:
+    delete:
+      tags: [Auth]
+      summary: Logout current session
+      responses:
+        "204":
+          description: Logged out
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /auth/password-reset-requests:
+    post:
+      tags: [Auth]
+      summary: Request password reset email
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        "202":
+          description: Reset email accepted
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /auth/password-resets:
+    post:
+      tags: [Auth]
+      summary: Set a new password using reset token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, new_password]
+              properties:
+                token:
+                  type: string
+                new_password:
+                  type: string
+                  format: password
+                  minLength: 12
+      responses:
+        "204":
+          description: Password changed
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /me:
+    get:
+      tags: [Self]
+      summary: Get current user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Me"
+        default:
+          $ref: "#/components/responses/Problem"
+
+    patch:
+      tags: [Self]
+      summary: Update own profile
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema:
+              $ref: "#/components/schemas/MePatch"
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Me"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /tenant:
+    get:
+      tags: [Tenant]
+      summary: Get tenant settings
+      responses:
+        "200":
+          description: Tenant settings
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tenant"
+        default:
+          $ref: "#/components/responses/Problem"
+
+    patch:
+      tags: [Tenant]
+      summary: Update tenant settings
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema:
+              $ref: "#/components/schemas/TenantPatch"
+      responses:
+        "200":
+          description: Updated tenant
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tenant"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /tenant/logo:
+    put:
+      tags: [Tenant]
+      summary: Upload tenant logo
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          image/png:
+            schema:
+              type: string
+              format: binary
+          image/svg+xml:
+            schema:
+              type: string
+              format: binary
+      responses:
+        "200":
+          description: Logo updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tenant"
+        default:
+          $ref: "#/components/responses/Problem"
+
+    delete:
+      tags: [Tenant]
+      summary: Delete tenant logo
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      responses:
+        "204":
+          description: Logo deleted
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /tenant/custom-domain:
+    put:
+      tags: [Tenant]
+      summary: Set custom domain
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [domain]
+              properties:
+                domain:
+                  type: string
+                  examples: [reisen.example.com]
+      responses:
+        "200":
+          description: Custom domain verification details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomDomain"
+        default:
+          $ref: "#/components/responses/Problem"
+
+    delete:
+      tags: [Tenant]
+      summary: Remove custom domain
+      responses:
+        "204":
+          description: Custom domain removed
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /tenant/subscription:
+    get:
+      tags: [Tenant]
+      summary: Get subscription status
+      responses:
+        "200":
+          description: Subscription
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Subscription"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /tenant/billing-portal-sessions:
+    post:
+      tags: [Tenant]
+      summary: Create Stripe billing portal session
+      responses:
+        "201":
+          description: Billing portal session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UrlResponse"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /tenant/payment-account:
+    get:
+      tags: [Tenant]
+      summary: Get Stripe Connect account status
+      responses:
+        "200":
+          description: Payment account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentAccount"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /tenant/payment-account/onboarding-links:
+    post:
+      tags: [Tenant]
+      summary: Create Stripe Connect onboarding link
+      responses:
+        "201":
+          description: Onboarding link
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UrlResponse"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /tenant/exports:
+    post:
+      tags: [Tenant]
+      summary: Request full tenant data export
+      responses:
+        "202":
+          description: Export accepted
+          headers:
+            Location:
+              $ref: "#/components/headers/Location"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExportJob"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /tenant/exports/{id}:
+    get:
+      tags: [Tenant]
+      summary: Get tenant export status
+      parameters:
+        - $ref: "#/components/parameters/UuidPathId"
+      responses:
+        "200":
+          description: Export job
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExportJob"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /users:
+    get:
+      tags: [Users]
+      summary: List users
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+        - name: role
+          in: query
+          schema:
+            $ref: "#/components/schemas/UserRole"
+        - name: status
+          in: query
+          schema:
+            $ref: "#/components/schemas/UserStatus"
+        - name: q
+          in: query
+          schema:
+            type: string
+        - name: sort
+          in: query
+          schema:
+            type: string
+            examples: [name, created_at, -created_at]
+      responses:
+        "200":
+          description: User collection
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserCollection"
+        default:
+          $ref: "#/components/responses/Problem"
+
+    post:
+      tags: [Users]
+      summary: Invite user
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKeyOptional"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserInvite"
+      responses:
+        "201":
+          description: User invited
+          headers:
+            Location:
+              $ref: "#/components/headers/Location"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /users/{id}:
+    get:
+      tags: [Users]
+      summary: Get user
+      parameters:
+        - $ref: "#/components/parameters/UuidPathId"
+      responses:
+        "200":
+          description: User
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        default:
+          $ref: "#/components/responses/Problem"
+
+    patch:
+      tags: [Users]
+      summary: Update user
+      parameters:
+        - $ref: "#/components/parameters/UuidPathId"
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema:
+              $ref: "#/components/schemas/UserPatch"
+      responses:
+        "200":
+          description: Updated user
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        default:
+          $ref: "#/components/responses/Problem"
+
+    delete:
+      tags: [Users]
+      summary: Delete user
+      parameters:
+        - $ref: "#/components/parameters/UuidPathId"
+        - $ref: "#/components/parameters/IfMatch"
+      responses:
+        "204":
+          description: User deleted
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /travels:
+    get:
+      tags: [Travels]
+      summary: List travels
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+        - name: status
+          in: query
+          schema:
+            $ref: "#/components/schemas/TravelStatus"
+        - name: departure_from
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: departure_to
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: driver_id
+          in: query
+          schema:
+            oneOf:
+              - type: string
+                const: me
+              - type: string
+                format: uuid
+        - name: series_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: q
+          in: query
+          schema:
+            type: string
+        - name: sort
+          in: query
+          schema:
+            type: string
+            examples: [departure_at, -departure_at, created_at, -created_at]
+      responses:
+        "200":
+          description: Travel collection
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TravelCollection"
+        default:
+          $ref: "#/components/responses/Problem"
+
+    post:
+      tags: [Travels]
+      summary: Create travel
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKeyOptional"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TravelCreate"
+      responses:
+        "201":
+          description: Travel created
+          headers:
+            Location:
+              $ref: "#/components/headers/Location"
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Travel"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /travels/{id}:
+    get:
+      tags: [Travels]
+      summary: Get travel
+      parameters:
+        - $ref: "#/components/parameters/UuidPathId"
+      responses:
+        "200":
+          description: Travel
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Travel"
+        default:
+          $ref: "#/components/responses/Problem"
+
+    patch:
+      tags: [Travels]
+      summary: Update travel
+      parameters:
+        - $ref: "#/components/parameters/UuidPathId"
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema:
+              $ref: "#/components/schemas/TravelPatch"
+      responses:
+        "200":
+          description: Updated travel
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Travel"
+        default:
+          $ref: "#/components/responses/Problem"
+
+    delete:
+      tags: [Travels]
+      summary: Delete draft travel
+      parameters:
+        - $ref: "#/components/parameters/UuidPathId"
+        - $ref: "#/components/parameters/IfMatch"
+      responses:
+        "204":
+          description: Travel deleted
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /travels/{id}/publish:
+    post:
+      tags: [Travels]
+      summary: Publish travel
+      parameters:
+        - $ref: "#/components/parameters/UuidPathId"
+        - $ref: "#/components/parameters/IdempotencyKeyOptional"
+      responses:
+        "200":
+          description: Published travel
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Travel"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /travels/{id}/unpublish:
+    post:
+      tags: [Travels]
+      summary: Unpublish travel
+      parameters:
+        - $ref: "#/components/parameters/UuidPathId"
+        - $ref: "#/components/parameters/IdempotencyKeyOptional"
+      responses:
+        "200":
+          description: Unpublished travel
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Travel"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /travels/{id}/cancel:
+    post:
+      tags: [Travels]
+      summary: Cancel travel
+      parameters:
+        - $ref: "#/components/parameters/UuidPathId"
+        - $ref: "#/components/parameters/IdempotencyKeyOptional"
+      responses:
+        "200":
+          description: Cancelled travel
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Travel"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /travels/{id}/availability:
+    get:
+      tags: [Travels]
+      summary: Get live travel availability
+      parameters:
+        - $ref: "#/components/parameters/UuidPathId"
+      responses:
+        "200":
+          description: Availability
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Availability"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /travels/{id}/bookings:
+    get:
+      tags: [Travels, Bookings]
+      summary: List bookings for a travel
+      parameters:
+        - $ref: "#/components/parameters/UuidPathId"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+        - name: status
+          in: query
+          schema:
+            $ref: "#/components/schemas/BookingStatus"
+        - name: source
+          in: query
+          schema:
+            $ref: "#/components/schemas/BookingSource"
+      responses:
+        "200":
+          description: Booking collection
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookingCollection"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /travels/{id}/passengers:
+    get:
+      tags: [Travels, Passengers]
+      summary: Get passenger manifest for travel
+      parameters:
+        - $ref: "#/components/parameters/UuidPathId"
+        - name: updated_since
+          in: query
+          schema:
+            type: string
+            format: date-time
+      responses:
+        "200":
+          description: Passenger collection
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PassengerCollection"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /travels/{id}/manifest:
+    get:
+      tags: [Travels]
+      summary: Export printable travel manifest
+      parameters:
+        - $ref: "#/components/parameters/UuidPathId"
+        - name: Accept
+          in: header
+          schema:
+            type: string
+            enum:
+              - application/json
+              - text/csv
+              - application/pdf
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum: [csv, pdf]
+      responses:
+        "200":
+          description: Manifest
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Manifest"
+            text/csv:
+              schema:
+                type: string
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /travel-series/{id}:
+    get:
+      tags: [Travel Series]
+      summary: Get travel series
+      parameters:
+        - $ref: "#/components/parameters/UuidPathId"
+      responses:
+        "200":
+          description: Travel series
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TravelSeries"
+        default:
+          $ref: "#/components/responses/Problem"
+
+    patch:
+      tags: [Travel Series]
+      summary: Update future occurrences of a travel series
+      parameters:
+        - $ref: "#/components/parameters/UuidPathId"
+        - name: from
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema:
+              $ref: "#/components/schemas/TravelSeriesPatch"
+      responses:
+        "200":
+          description: Updated travel series
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TravelSeries"
+        default:
+          $ref: "#/components/responses/Problem"
+
+    delete:
+      tags: [Travel Series]
+      summary: Delete future draft occurrences without bookings
+      parameters:
+        - $ref: "#/components/parameters/UuidPathId"
+      responses:
+        "204":
+          description: Series deleted
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /bookings:
+    get:
+      tags: [Bookings]
+      summary: List bookings
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+        - name: Accept
+          in: header
+          schema:
+            type: string
+            enum:
+              - application/json
+              - text/csv
+        - name: travel_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          schema:
+            $ref: "#/components/schemas/BookingStatus"
+        - name: source
+          in: query
+          schema:
+            $ref: "#/components/schemas/BookingSource"
+        - name: created_from
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: created_to
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: q
+          in: query
+          schema:
+            type: string
+        - name: sort
+          in: query
+          schema:
+            type: string
+            examples: [created_at, -created_at, departure_at, -departure_at]
+      responses:
+        "200":
+          description: Booking collection or CSV export
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookingCollection"
+            text/csv:
+              schema:
+                type: string
+        default:
+          $ref: "#/components/responses/Problem"
+
+    post:
+      tags: [Bookings]
+      summary: Create manual booking
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ManualBookingCreate"
+      responses:
+        "201":
+          description: Booking created
+          headers:
+            Location:
+              $ref: "#/components/headers/Location"
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /bookings/{id}:
+    get:
+      tags: [Bookings]
+      summary: Get booking
+      parameters:
+        - $ref: "#/components/parameters/UuidPathId"
+      responses:
+        "200":
+          description: Booking
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+        default:
+          $ref: "#/components/responses/Problem"
+
+    patch:
+      tags: [Bookings]
+      summary: Update booking
+      parameters:
+        - $ref: "#/components/parameters/UuidPathId"
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema:
+              $ref: "#/components/schemas/BookingPatch"
+      responses:
+        "200":
+          description: Updated booking
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /bookings/{id}/cancel:
+    post:
+      tags: [Bookings]
+      summary: Cancel booking
+      parameters:
+        - $ref: "#/components/parameters/UuidPathId"
+        - $ref: "#/components/parameters/IdempotencyKeyOptional"
+      responses:
+        "200":
+          description: Cancelled booking
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /bookings/{id}/resend-confirmation:
+    post:
+      tags: [Bookings]
+      summary: Resend booking confirmation email
+      parameters:
+        - $ref: "#/components/parameters/UuidPathId"
+        - $ref: "#/components/parameters/IdempotencyKeyOptional"
+      responses:
+        "202":
+          description: Email queued
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /bookings/{id}/anonymization:
+    post:
+      tags: [Bookings]
+      summary: Anonymize booking personal data
+      parameters:
+        - $ref: "#/components/parameters/UuidPathId"
+        - $ref: "#/components/parameters/IdempotencyKeyOptional"
+      responses:
+        "200":
+          description: Anonymized booking
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /bookings/{id}/passengers:
+    get:
+      tags: [Bookings, Passengers]
+      summary: List passengers of booking
+      parameters:
+        - $ref: "#/components/parameters/UuidPathId"
+      responses:
+        "200":
+          description: Passenger collection
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PassengerCollection"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /passengers/{id}:
+    patch:
+      tags: [Passengers]
+      summary: Update passenger
+      description: Staff may edit passenger details. Drivers may only update boarded state.
+      parameters:
+        - $ref: "#/components/parameters/UuidPathId"
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema:
+              $ref: "#/components/schemas/PassengerPatch"
+      responses:
+        "200":
+          description: Updated passenger
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Passenger"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /dashboard:
+    get:
+      tags: [Dashboard]
+      summary: Get dashboard metrics
+      parameters:
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date-time
+      responses:
+        "200":
+          description: Dashboard
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dashboard"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /shops:
+    get:
+      tags: [Shop]
+      summary: Resolve host to shop
+      security: []
+      parameters:
+        - name: host
+          in: query
+          required: true
+          schema:
+            type: string
+            examples: [reisen.example.com]
+      responses:
+        "200":
+          description: Shop resolved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Shop"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /shops/{shop_slug}:
+    get:
+      tags: [Shop]
+      summary: Get public shop configuration
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/ShopSlug"
+      responses:
+        "200":
+          description: Shop config
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Shop"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /shops/{shop_slug}/travels:
+    get:
+      tags: [Shop]
+      summary: List public published travels
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/ShopSlug"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+        - name: departure_from
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: departure_to
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: origin
+          in: query
+          schema:
+            type: string
+        - name: destination
+          in: query
+          schema:
+            type: string
+        - name: sort
+          in: query
+          schema:
+            type: string
+            examples: [departure_at]
+      responses:
+        "200":
+          description: Public travel collection
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+              example: public, max-age=30, stale-while-revalidate=60
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicTravelCollection"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /shops/{shop_slug}/travels/{id}:
+    get:
+      tags: [Shop]
+      summary: Get public travel detail
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/ShopSlug"
+        - $ref: "#/components/parameters/UuidPathId"
+      responses:
+        "200":
+          description: Public travel
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+              example: public, max-age=30, stale-while-revalidate=60
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicTravel"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /shops/{shop_slug}/bookings:
+    post:
+      tags: [Shop]
+      summary: Create public shop booking and start Stripe Checkout
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/ShopSlug"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShopBookingCreate"
+      responses:
+        "201":
+          description: Pending payment booking created
+          headers:
+            Location:
+              $ref: "#/components/headers/Location"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShopBookingCreateResponse"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /shops/{shop_slug}/bookings/{id}:
+    get:
+      tags: [Shop]
+      summary: Get own public booking status
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/ShopSlug"
+        - $ref: "#/components/parameters/UuidPathId"
+        - name: token
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Public booking
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicBooking"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /health:
+    get:
+      tags: [Operational]
+      summary: Liveness check
+      security: []
+      responses:
+        "200":
+          description: API is alive
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+
+  /ready:
+    get:
+      tags: [Operational]
+      summary: Readiness check
+      security: []
+      responses:
+        "200":
+          description: API is ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Readiness"
+        "503":
+          description: API is not ready
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+    refreshCookieAuth:
+      type: apiKey
+      in: cookie
+      name: refresh_token
+
+  parameters:
+    UuidPathId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+    ShopSlug:
+      name: shop_slug
+      in: path
+      required: true
+      schema:
+        $ref: "#/components/schemas/Slug"
+
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 25
+
+    Cursor:
+      name: cursor
+      in: query
+      schema:
+        type: string
+
+    IfMatch:
+      name: If-Match
+      in: header
+      required: true
+      schema:
+        type: string
+      description: Required for guarded mutable resources.
+
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 255
+
+    IdempotencyKeyOptional:
+      name: Idempotency-Key
+      in: header
+      required: false
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 255
+
+  headers:
+    Location:
+      schema:
+        type: string
+      description: URL of the created resource.
+
+    ETag:
+      schema:
+        type: string
+      description: Entity tag for optimistic concurrency.
+
+    XRequestId:
+      schema:
+        type: string
+      description: Request trace ID.
+
+  responses:
+    Problem:
+      description: Error response
+      headers:
+        X-Request-Id:
+          $ref: "#/components/headers/XRequestId"
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+
+  schemas:
+    Uuid:
+      type: string
+      format: uuid
+
+    Slug:
+      type: string
+      pattern: "^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$"
+      examples: [acme-reisen]
+
+    Timestamp:
+      type: string
+      format: date-time
+      examples: ["2026-11-03T06:30:00Z"]
+
+    Money:
+      type: object
+      required: [amount_cents, currency]
+      properties:
+        amount_cents:
+          type: integer
+          examples: [4500]
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+          examples: [EUR]
+
+    Page:
+      type: object
+      required: [has_more]
+      properties:
+        next_cursor:
+          type:
+            - string
+            - "null"
+        has_more:
+          type: boolean
+
+    Problem:
+      type: object
+      required: [type, title, status, code, detail, instance, request_id]
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        code:
+          type: string
+          examples:
+            - insufficient_capacity
+            - validation_error
+            - unauthenticated
+        detail:
+          type: string
+        instance:
+          type: string
+        request_id:
+          type: string
+        errors:
+          type: array
+          items:
+            type: object
+            required: [pointer, code, message]
+            properties:
+              pointer:
+                type: string
+              code:
+                type: string
+              message:
+                type: string
+
+    UserRole:
+      type: string
+      enum: [admin, staff, driver]
+
+    UserStatus:
+      type: string
+      enum: [active, disabled, invited]
+
+    TravelStatus:
+      type: string
+      enum: [draft, published, cancelled]
+
+    BookingStatus:
+      type: string
+      enum:
+        - pending_payment
+        - confirmed
+        - cancelled
+        - expired
+
+    BookingSource:
+      type: string
+      enum: [shop, staff]
+
+    PaymentStatus:
+      type: string
+      enum:
+        - unpaid
+        - pending
+        - paid
+        - refunded
+        - failed
+
+    SignupCreate:
+      type: object
+      required: [company_name, admin_email, desired_slug]
+      properties:
+        company_name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        admin_email:
+          type: string
+          format: email
+        desired_slug:
+          $ref: "#/components/schemas/Slug"
+
+    SignupCreateResponse:
+      type: object
+      required: [id, status, checkout_url, token]
+      properties:
+        id:
+          $ref: "#/components/schemas/Uuid"
+        status:
+          type: string
+          const: awaiting_payment
+        checkout_url:
+          type: string
+          format: uri
+        token:
+          type: string
+
+    SignupStatus:
+      type: object
+      required: [id, status]
+      properties:
+        id:
+          $ref: "#/components/schemas/Uuid"
+        status:
+          type: string
+          enum: [awaiting_payment, provisioning, ready, failed]
+        shop_slug:
+          anyOf:
+            - $ref: "#/components/schemas/Slug"
+            - type: "null"
+        error:
+          type:
+            - string
+            - "null"
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+
+    TokenResponse:
+      type: object
+      required: [access_token, token_type, expires_in]
+      properties:
+        access_token:
+          type: string
+        token_type:
+          type: string
+          const: bearer
+        expires_in:
+          type: integer
+          examples: [900]
+
+    Me:
+      type: object
+      required: [id, email, name, role, tenant]
+      properties:
+        id:
+          $ref: "#/components/schemas/Uuid"
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        role:
+          $ref: "#/components/schemas/UserRole"
+        tenant:
+          type: object
+          required: [id, name, shop_slug]
+          properties:
+            id:
+              $ref: "#/components/schemas/Uuid"
+            name:
+              type: string
+            shop_slug:
+              $ref: "#/components/schemas/Slug"
+
+    MePatch:
+      type: object
+      properties:
+        name:
+          type: string
+        current_password:
+          type: string
+          format: password
+        new_password:
+          type: string
+          format: password
+          minLength: 12
+
+    Theme:
+      type: object
+      properties:
+        primary_color:
+          type: string
+          pattern: "^#[0-9A-Fa-f]{6}$"
+          examples: ["#0F766E"]
+        logo_url:
+          type:
+            - string
+            - "null"
+          format: uri
+
+    Tenant:
+      type: object
+      required: [id, company_name, shop_slug, theme]
+      properties:
+        id:
+          $ref: "#/components/schemas/Uuid"
+        company_name:
+          type: string
+        shop_slug:
+          $ref: "#/components/schemas/Slug"
+        theme:
+          $ref: "#/components/schemas/Theme"
+        contact_email:
+          type:
+            - string
+            - "null"
+          format: email
+        custom_domain:
+          anyOf:
+            - $ref: "#/components/schemas/CustomDomain"
+            - type: "null"
+
+    TenantPatch:
+      type: object
+      properties:
+        company_name:
+          type: string
+        theme:
+          $ref: "#/components/schemas/Theme"
+        contact_email:
+          type: string
+          format: email
+
+    CustomDomain:
+      type: object
+      required: [domain, status]
+      properties:
+        domain:
+          type: string
+        status:
+          type: string
+          enum: [pending_verification, active, failed]
+        required_dns_records:
+          type: array
+          items:
+            type: object
+            required: [type, name, value]
+            properties:
+              type:
+                type: string
+                examples: [CNAME]
+              name:
+                type: string
+              value:
+                type: string
+
+    Subscription:
+      type: object
+      required: [plan, status]
+      properties:
+        plan:
+          type: string
+        status:
+          type: string
+          enum: [active, past_due, canceled]
+        current_period_end:
+          $ref: "#/components/schemas/Timestamp"
+
+    PaymentAccount:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [not_connected, onboarding, active, restricted]
+
+    UrlResponse:
+      type: object
+      required: [url]
+      properties:
+        url:
+          type: string
+          format: uri
+
+    ExportJob:
+      type: object
+      required: [id, status]
+      properties:
+        id:
+          $ref: "#/components/schemas/Uuid"
+        status:
+          type: string
+          enum: [queued, running, ready, failed]
+        download_url:
+          type:
+            - string
+            - "null"
+          format: uri
+        expires_at:
+          anyOf:
+            - $ref: "#/components/schemas/Timestamp"
+            - type: "null"
+
+    User:
+      type: object
+      required: [id, email, name, role, status, created_at, updated_at]
+      properties:
+        id:
+          $ref: "#/components/schemas/Uuid"
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        role:
+          $ref: "#/components/schemas/UserRole"
+        status:
+          $ref: "#/components/schemas/UserStatus"
+        created_at:
+          $ref: "#/components/schemas/Timestamp"
+        updated_at:
+          $ref: "#/components/schemas/Timestamp"
+
+    UserInvite:
+      type: object
+      required: [email, name, role]
+      properties:
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        role:
+          $ref: "#/components/schemas/UserRole"
+
+    UserPatch:
+      type: object
+      properties:
+        name:
+          type: string
+        role:
+          $ref: "#/components/schemas/UserRole"
+        status:
+          type: string
+          enum: [active, disabled]
+
+    UserCollection:
+      type: object
+      required: [data, page]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/User"
+        page:
+          $ref: "#/components/schemas/Page"
+
+    Stop:
+      type: object
+      required: [id, sequence, name, planned_time, is_boarding_point]
+      properties:
+        id:
+          $ref: "#/components/schemas/Uuid"
+        sequence:
+          type: integer
+          minimum: 1
+        name:
+          type: string
+        address:
+          type:
+            - string
+            - "null"
+        planned_time:
+          type: string
+          format: date-time
+        is_boarding_point:
+          type: boolean
+
+    PriceOption:
+      type: object
+      required: [id, code, label, price]
+      properties:
+        id:
+          $ref: "#/components/schemas/Uuid"
+        code:
+          type: string
+          examples: [adult]
+        label:
+          type: string
+          examples: [Erwachsene]
+        price:
+          $ref: "#/components/schemas/Money"
+
+    Availability:
+      type: object
+      required: [capacity, booked, reserved, available]
+      properties:
+        capacity:
+          type: integer
+        booked:
+          type: integer
+        reserved:
+          type: integer
+        available:
+          type: integer
+
+    Recurrence:
+      type: object
+      required: [frequency, interval, until]
+      properties:
+        frequency:
+          type: string
+          enum: [weekly]
+        interval:
+          type: integer
+          minimum: 1
+        until:
+          type: string
+          format: date
+
+    Travel:
+      type: object
+      required:
+        - id
+        - title
+        - status
+        - departure_at
+        - timezone
+        - capacity
+        - stops
+        - prices
+        - availability
+        - created_at
+        - updated_at
+      properties:
+        id:
+          $ref: "#/components/schemas/Uuid"
+        title:
+          type: string
+        status:
+          $ref: "#/components/schemas/TravelStatus"
+        departure_at:
+          $ref: "#/components/schemas/Timestamp"
+        timezone:
+          type: string
+          examples: [Europe/Berlin]
+        capacity:
+          type: integer
+          minimum: 1
+        stops:
+          type: array
+          items:
+            $ref: "#/components/schemas/Stop"
+        prices:
+          type: array
+          items:
+            $ref: "#/components/schemas/PriceOption"
+        driver_id:
+          type:
+            - string
+            - "null"
+          format: uuid
+        driver_notes:
+          type:
+            - string
+            - "null"
+        internal_notes:
+          type:
+            - string
+            - "null"
+        series_id:
+          type:
+            - string
+            - "null"
+          format: uuid
+        availability:
+          $ref: "#/components/schemas/Availability"
+        created_at:
+          $ref: "#/components/schemas/Timestamp"
+        updated_at:
+          $ref: "#/components/schemas/Timestamp"
+
+    TravelCreate:
+      type: object
+      required: [title, departure_at, timezone, capacity, stops, prices]
+      properties:
+        title:
+          type: string
+        departure_at:
+          $ref: "#/components/schemas/Timestamp"
+        timezone:
+          type: string
+        capacity:
+          type: integer
+          minimum: 1
+        stops:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/StopInput"
+        prices:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/PriceOptionInput"
+        driver_id:
+          type:
+            - string
+            - "null"
+          format: uuid
+        driver_notes:
+          type:
+            - string
+            - "null"
+        internal_notes:
+          type:
+            - string
+            - "null"
+        recurrence:
+          anyOf:
+            - $ref: "#/components/schemas/Recurrence"
+            - type: "null"
+
+    TravelPatch:
+      type: object
+      properties:
+        title:
+          type: string
+        departure_at:
+          $ref: "#/components/schemas/Timestamp"
+        timezone:
+          type: string
+        capacity:
+          type: integer
+          minimum: 1
+        stops:
+          type: array
+          items:
+            $ref: "#/components/schemas/StopInput"
+        prices:
+          type: array
+          items:
+            $ref: "#/components/schemas/PriceOptionInput"
+        driver_id:
+          type:
+            - string
+            - "null"
+          format: uuid
+        driver_notes:
+          type:
+            - string
+            - "null"
+        internal_notes:
+          type:
+            - string
+            - "null"
+
+    StopInput:
+      type: object
+      required: [sequence, name, planned_time, is_boarding_point]
+      properties:
+        id:
+          type:
+            - string
+            - "null"
+          format: uuid
+        sequence:
+          type: integer
+          minimum: 1
+        name:
+          type: string
+        address:
+          type:
+            - string
+            - "null"
+        planned_time:
+          type: string
+          format: date-time
+        is_boarding_point:
+          type: boolean
+
+    PriceOptionInput:
+      type: object
+      required: [code, label, price]
+      properties:
+        id:
+          type:
+            - string
+            - "null"
+          format: uuid
+        code:
+          type: string
+        label:
+          type: string
+        price:
+          $ref: "#/components/schemas/Money"
+
+    TravelCollection:
+      type: object
+      required: [data, page]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Travel"
+        page:
+          $ref: "#/components/schemas/Page"
+
+    TravelSeries:
+      type: object
+      required: [id, recurrence, occurrences]
+      properties:
+        id:
+          $ref: "#/components/schemas/Uuid"
+        recurrence:
+          $ref: "#/components/schemas/Recurrence"
+        occurrences:
+          type: array
+          items:
+            $ref: "#/components/schemas/Travel"
+
+    TravelSeriesPatch:
+      type: object
+      properties:
+        recurrence:
+          $ref: "#/components/schemas/Recurrence"
+        travel:
+          $ref: "#/components/schemas/TravelPatch"
+
+    Contact:
+      type: object
+      required: [name, email]
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type:
+            - string
+            - "null"
+
+    Passenger:
+      type: object
+      required: [id, name, price_id, boarding_stop_id, boarded]
+      properties:
+        id:
+          $ref: "#/components/schemas/Uuid"
+        name:
+          type: string
+        phone:
+          type:
+            - string
+            - "null"
+        price_id:
+          $ref: "#/components/schemas/Uuid"
+        boarding_stop_id:
+          $ref: "#/components/schemas/Uuid"
+        boarded:
+          type: boolean
+        boarded_at:
+          anyOf:
+            - $ref: "#/components/schemas/Timestamp"
+            - type: "null"
+
+    PassengerInput:
+      type: object
+      required: [name, boarding_stop_id, price_id]
+      properties:
+        name:
+          type: string
+        phone:
+          type:
+            - string
+            - "null"
+        boarding_stop_id:
+          $ref: "#/components/schemas/Uuid"
+        price_id:
+          $ref: "#/components/schemas/Uuid"
+
+    PassengerPatch:
+      type: object
+      properties:
+        name:
+          type: string
+        phone:
+          type:
+            - string
+            - "null"
+        boarding_stop_id:
+          $ref: "#/components/schemas/Uuid"
+        boarded:
+          type: boolean
+        boarded_at:
+          anyOf:
+            - $ref: "#/components/schemas/Timestamp"
+            - type: "null"
+
+    PassengerCollection:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Passenger"
+
+    PaymentSummary:
+      type: object
+      required: [method, status]
+      properties:
+        method:
+          type: string
+          enum: [stripe, manual]
+        status:
+          $ref: "#/components/schemas/PaymentStatus"
+        paid_at:
+          anyOf:
+            - $ref: "#/components/schemas/Timestamp"
+            - type: "null"
+
+    Booking:
+      type: object
+      required:
+        - id
+        - ticket_number
+        - travel_id
+        - status
+        - source
+        - places
+        - contact
+        - passengers
+        - total
+        - payment
+        - created_at
+        - updated_at
+      properties:
+        id:
+          $ref: "#/components/schemas/Uuid"
+        ticket_number:
+          type: string
+          examples: [BR-7K4M2Q]
+        travel_id:
+          $ref: "#/components/schemas/Uuid"
+        status:
+          $ref: "#/components/schemas/BookingStatus"
+        source:
+          $ref: "#/components/schemas/BookingSource"
+        places:
+          type: integer
+          minimum: 1
+          maximum: 20
+        contact:
+          $ref: "#/components/schemas/Contact"
+        passengers:
+          type: array
+          items:
+            $ref: "#/components/schemas/Passenger"
+        total:
+          $ref: "#/components/schemas/Money"
+        payment:
+          $ref: "#/components/schemas/PaymentSummary"
+        expires_at:
+          anyOf:
+            - $ref: "#/components/schemas/Timestamp"
+            - type: "null"
+        notes:
+          type:
+            - string
+            - "null"
+        created_at:
+          $ref: "#/components/schemas/Timestamp"
+        updated_at:
+          $ref: "#/components/schemas/Timestamp"
+
+    BookingPatch:
+      type: object
+      properties:
+        contact:
+          $ref: "#/components/schemas/Contact"
+        passengers:
+          type: array
+          items:
+            $ref: "#/components/schemas/PassengerInput"
+        notes:
+          type:
+            - string
+            - "null"
+
+    BookingCollection:
+      type: object
+      required: [data, page]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Booking"
+        page:
+          $ref: "#/components/schemas/Page"
+
+    ManualBookingCreate:
+      type: object
+      required: [travel_id, contact, passengers]
+      properties:
+        travel_id:
+          $ref: "#/components/schemas/Uuid"
+        contact:
+          $ref: "#/components/schemas/Contact"
+        passengers:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items:
+            $ref: "#/components/schemas/PassengerInput"
+        notes:
+          type:
+            - string
+            - "null"
+
+    Shop:
+      type: object
+      required: [slug, name, theme]
+      properties:
+        slug:
+          $ref: "#/components/schemas/Slug"
+        name:
+          type: string
+        theme:
+          $ref: "#/components/schemas/Theme"
+        contact:
+          type: object
+          properties:
+            email:
+              type:
+                - string
+                - "null"
+              format: email
+            phone:
+              type:
+                - string
+                - "null"
+        legal_links:
+          type: object
+          properties:
+            imprint_url:
+              type:
+                - string
+                - "null"
+              format: uri
+            privacy_url:
+              type:
+                - string
+                - "null"
+              format: uri
+            terms_url:
+              type:
+                - string
+                - "null"
+              format: uri
+
+    PublicTravel:
+      type: object
+      required:
+        - id
+        - title
+        - departure_at
+        - timezone
+        - stops
+        - prices
+        - available_places
+      properties:
+        id:
+          $ref: "#/components/schemas/Uuid"
+        title:
+          type: string
+        departure_at:
+          $ref: "#/components/schemas/Timestamp"
+        timezone:
+          type: string
+        stops:
+          type: array
+          items:
+            $ref: "#/components/schemas/Stop"
+        prices:
+          type: array
+          items:
+            $ref: "#/components/schemas/PriceOption"
+        available_places:
+          type: integer
+          description: Approximate capped availability for public display.
+
+    PublicTravelCollection:
+      type: object
+      required: [data, page]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/PublicTravel"
+        page:
+          $ref: "#/components/schemas/Page"
+
+    ShopBookingItem:
+      type: object
+      required: [price_id, quantity]
+      properties:
+        price_id:
+          $ref: "#/components/schemas/Uuid"
+        quantity:
+          type: integer
+          minimum: 1
+
+    ShopBookingCreate:
+      type: object
+      required: [travel_id, items, contact, passengers, accepted_terms]
+      properties:
+        travel_id:
+          $ref: "#/components/schemas/Uuid"
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/ShopBookingItem"
+        contact:
+          $ref: "#/components/schemas/Contact"
+        passengers:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items:
+            $ref: "#/components/schemas/PassengerInput"
+        accepted_terms:
+          type: boolean
+          const: true
+
+    ShopBookingCreateResponse:
+      type: object
+      required: [id, status, expires_at, access_token, payment, total]
+      properties:
+        id:
+          $ref: "#/components/schemas/Uuid"
+        status:
+          type: string
+          const: pending_payment
+        expires_at:
+          $ref: "#/components/schemas/Timestamp"
+        access_token:
+          type: string
+        payment:
+          type: object
+          required: [checkout_url]
+          properties:
+            checkout_url:
+              type: string
+              format: uri
+        total:
+          $ref: "#/components/schemas/Money"
+
+    PublicBooking:
+      type: object
+      required: [id, ticket_number, status, travel_id, places, total, payment]
+      properties:
+        id:
+          $ref: "#/components/schemas/Uuid"
+        ticket_number:
+          type:
+            - string
+            - "null"
+        status:
+          $ref: "#/components/schemas/BookingStatus"
+        travel_id:
+          $ref: "#/components/schemas/Uuid"
+        places:
+          type: integer
+        total:
+          $ref: "#/components/schemas/Money"
+        payment:
+          $ref: "#/components/schemas/PaymentSummary"
+        expires_at:
+          anyOf:
+            - $ref: "#/components/schemas/Timestamp"
+            - type: "null"
+
+    Manifest:
+      type: object
+      required: [travel, passengers]
+      properties:
+        travel:
+          $ref: "#/components/schemas/Travel"
+        passengers:
+          type: array
+          items:
+            $ref: "#/components/schemas/Passenger"
+
+    Dashboard:
+      type: object
+      required: [upcoming_travels, occupancy, total_sales]
+      properties:
+        upcoming_travels:
+          type: array
+          maxItems: 10
+          items:
+            $ref: "#/components/schemas/Travel"
+        occupancy:
+          type: array
+          items:
+            type: object
+            required: [travel_id, capacity, booked, occupancy_percent]
+            properties:
+              travel_id:
+                $ref: "#/components/schemas/Uuid"
+              capacity:
+                type: integer
+              booked:
+                type: integer
+              occupancy_percent:
+                type: number
+        total_sales:
+          $ref: "#/components/schemas/Money"
+
+    Health:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          const: ok
+
+    Readiness:
+      type: object
+      required: [status, database, migrations]
+      properties:
+        status:
+          type: string
+          enum: [ready, not_ready]
+        database:
+          type: string
+          enum: [ok, unavailable]
+        migrations:
+          type: string
+          enum: [ok, pending, unknown]
