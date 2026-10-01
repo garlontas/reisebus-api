@@ -9,15 +9,12 @@ import org.slf4j.LoggerFactory
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.modulith.events.ApplicationModuleListener
 import org.springframework.stereotype.Service
-import java.time.Clock
-import java.time.OffsetDateTime
 
 @Service
 internal class TenantProvisioning(
     private val tenantRepository: TenantRepository,
     private val tenantSchemaMigrator: TenantSchemaMigrator,
     private val eventPublisher: ApplicationEventPublisher,
-    private val clock: Clock
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
 
@@ -34,7 +31,6 @@ internal class TenantProvisioning(
             tenantSchemaMigrator.migrateTenantSchema(event.schemaName)
 
             tenant.status = TenantStatus.ACTIVE
-            tenant.updatedAt = OffsetDateTime.now(clock)
             tenantRepository.save(tenant)
 
             val provisionedEvent = TenantProvisioned(
@@ -51,7 +47,6 @@ internal class TenantProvisioning(
             logger.error("Failed to provision tenant {} with schema {}", event.tenantId, event.schemaName, e)
 
             tenant.status = TenantStatus.FAILED
-            tenant.updatedAt = OffsetDateTime.now(clock)
             tenantRepository.save(tenant)
 
             throw e

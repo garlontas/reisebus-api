@@ -8,8 +8,6 @@ import org.springframework.boot.ApplicationArguments
 import org.springframework.boot.ApplicationRunner
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.stereotype.Component
-import java.time.Clock
-import java.time.OffsetDateTime
 
 /**
  * Runs on application startup to migrate all ACTIVE or PROVISIONING tenants.
@@ -25,7 +23,6 @@ import java.time.OffsetDateTime
 internal class TenantMigrationRunner(
     private val tenantRepository: TenantRepository,
     private val tenantSchemaMigrator: TenantSchemaMigrator,
-    private val clock: Clock
 ) : ApplicationRunner {
 
     private val logger = LoggerFactory.getLogger(javaClass)
@@ -42,7 +39,6 @@ internal class TenantMigrationRunner(
             } catch (e: Exception) {
                 logger.error("Migration failed for tenant: {} (schema: {}). Marking as FAILED.", tenant.slug, tenant.schemaName, e)
                 tenant.status = TenantStatus.FAILED
-                tenant.updatedAt = OffsetDateTime.now(clock)
                 tenantRepository.save(tenant)
             }
         }

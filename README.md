@@ -52,7 +52,7 @@ The application uses PostgreSQL with a **schema-per-tenant** isolation model:
 Migrations are managed by Liquibase:
 - **Platform changelog** (`db/changelog/db.changelog-master.yaml`, includes everything in `changes/`) runs automatically on startup.
 - **Tenant changelog** (`db/changelog/tenant/db.changelog-master.yaml`) is applied per tenant schema by `TenantSchemaMigrator`:
-  - On signup, `TenantService` publishes a `TenantCreated` event; `TenantProvisioning` handles it asynchronously,
+    - On signup, `PlatformService` publishes a `TenantCreated` event; `TenantProvisioning` handles it asynchronously,
     creates the schema, runs the tenant migrations and marks the tenant `ACTIVE` (or `FAILED` on error).
   - When `app.tenancy.migrate-on-startup=true` (enabled in the `dev` profile, disabled by default), all `ACTIVE`
     and `PROVISIONING` tenant schemas are migrated on startup; tenants that fail are marked `FAILED`.

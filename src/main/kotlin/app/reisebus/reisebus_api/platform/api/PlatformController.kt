@@ -5,7 +5,7 @@ import app.reisebus.reisebus_api.platform.api.contract.CreateTenantResponse
 import app.reisebus.reisebus_api.platform.api.contract.SignupProvisioningStatus
 import app.reisebus.reisebus_api.platform.api.contract.SlugAvailabilityResponse
 import app.reisebus.reisebus_api.platform.messaging.CreateTenant
-import app.reisebus.reisebus_api.platform.service.TenantService
+import app.reisebus.reisebus_api.platform.service.PlatformService
 import jakarta.validation.Valid
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
@@ -15,12 +15,12 @@ import java.util.*
 @RestController
 @RequestMapping("/api/platform")
 class PlatformController(
-    private val tenantService: TenantService
+    private val platformService: PlatformService
 ) {
 
     @PostMapping("/signups")
     fun createTenant(@RequestBody @Valid request: CreateTenantRequest): ResponseEntity<CreateTenantResponse> {
-        val tenant = tenantService.createTenant(
+        val tenant = platformService.createTenant(
             CreateTenant(request.companyName, request.desiredSlug)
         )
         return ResponseEntity
@@ -30,12 +30,12 @@ class PlatformController(
 
     @GetMapping("/signups/{id}")
     fun getSignupProvisioningStatus(@PathVariable id: UUID): SignupProvisioningStatus {
-        return tenantService.getSignupProvisioningStatus(id)
+        return platformService.getSignupProvisioningStatus(id)
     }
 
     @GetMapping("/slug-availability")
     fun checkShopSlugAvailability(@RequestParam("slug") slug: String): SlugAvailabilityResponse {
-        val isAvailable = tenantService.isDesiredSlugAvailable(slug)
+        val isAvailable = platformService.isDesiredSlugAvailable(slug)
         return SlugAvailabilityResponse(slug.trim().lowercase(), isAvailable)
     }
 }

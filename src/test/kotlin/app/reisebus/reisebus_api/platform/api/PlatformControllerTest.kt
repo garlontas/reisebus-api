@@ -7,8 +7,8 @@ import app.reisebus.reisebus_api.platform.domain.TenantStatus
 import app.reisebus.reisebus_api.platform.messaging.CreateTenant
 import app.reisebus.reisebus_api.platform.messaging.TenantCreated
 import app.reisebus.reisebus_api.platform.service.DuplicateShopSlugException
+import app.reisebus.reisebus_api.platform.service.PlatformService
 import app.reisebus.reisebus_api.platform.service.TenantNotFoundException
-import app.reisebus.reisebus_api.platform.service.TenantService
 import com.ninjasquad.springmockk.MockkBean
 import io.mockk.clearMocks
 import io.mockk.every
@@ -35,16 +35,19 @@ class PlatformControllerTest(
     @Autowired private val mvc: MockMvc,
 ) {
     @MockkBean
-    private lateinit var tenantService: TenantService
+    private lateinit var platformService: PlatformService
 
     @AfterEach
-    fun tearDown() = clearMocks(tenantService)
+    fun tearDown() = clearMocks(platformService)
 
     @Test
     fun `POST tenants returns 201 with location and forwards request data to the service`() {
         val tenantId = UUID.randomUUID()
         val command = slot<CreateTenant>()
-        every { tenantService.createTenant(capture(command)) } returns tenantCreated(tenantId, TenantStatus.PROVISIONING)
+        every { platformService.createTenant(capture(command)) } returns tenantCreated(
+            tenantId,
+            TenantStatus.PROVISIONING
+        )
 
         mvc.post(TENANTS_URL) {
             contentType = MediaType.APPLICATION_JSON
@@ -63,7 +66,7 @@ class PlatformControllerTest(
     @ParameterizedTest
     @EnumSource(TenantStatus::class)
     fun `POST tenants returns the status reported by the service`(status: TenantStatus) {
-        every { tenantService.createTenant(any()) } returns tenantCreated(UUID.randomUUID(), status)
+        every { platformService.createTenant(any()) } returns tenantCreated(UUID.randomUUID(), status)
 
         mvc.post(TENANTS_URL) {
             contentType = MediaType.APPLICATION_JSON
@@ -84,7 +87,7 @@ class PlatformControllerTest(
             status { isBadRequest() }
         }
 
-        verify(exactly = 0) { tenantService.createTenant(any()) }
+        verify(exactly = 0) { platformService.createTenant(any()) }
     }
 
     @ParameterizedTest
@@ -97,7 +100,7 @@ class PlatformControllerTest(
             status { isBadRequest() }
         }
 
-        verify(exactly = 0) { tenantService.createTenant(any()) }
+        verify(exactly = 0) { platformService.createTenant(any()) }
     }
 
     @ParameterizedTest
@@ -110,7 +113,7 @@ class PlatformControllerTest(
             status { isBadRequest() }
         }
 
-        verify(exactly = 0) { tenantService.createTenant(any()) }
+        verify(exactly = 0) { platformService.createTenant(any()) }
     }
 
     @Test
@@ -125,7 +128,7 @@ class PlatformControllerTest(
 
     @Test
     fun `POST tenants with duplicate slug returns 409`() {
-        every { tenantService.createTenant(any()) } throws DuplicateShopSlugException("example-bus")
+        every { platformService.createTenant(any()) } throws DuplicateShopSlugException("example-bus")
         mvc.post(TENANTS_URL) {
             contentType = MediaType.APPLICATION_JSON
             content = createTenantJson(desiredSlug = "example-bus")
@@ -136,7 +139,7 @@ class PlatformControllerTest(
     @EnumSource(TenantCreationStatus::class)
     fun `GET provisioning status returns the status reported by the service`(status: TenantCreationStatus) {
         val tenantId = UUID.randomUUID()
-        every { tenantService.getSignupProvisioningStatus(tenantId) } returns
+        every { platformService.getSignupProvisioningStatus(tenantId) } returns
                 SignupProvisioningStatus(
                     id = tenantId,
                     status = status,
@@ -151,13 +154,13 @@ class PlatformControllerTest(
             jsonPath("$.shopSlug") { value("test-slug") }
         }
 
-        verify(exactly = 1) { tenantService.getSignupProvisioningStatus(tenantId) }
+        verify(exactly = 1) { platformService.getSignupProvisioningStatus(tenantId) }
     }
 
     @Test
     fun `GET provisioning status exposes the error when provisioning failed`() {
         val tenantId = UUID.randomUUID()
-        every { tenantService.getSignupProvisioningStatus(tenantId) } returns
+        every { platformService.getSignupProvisioningStatus(tenantId) } returns
                 SignupProvisioningStatus(
                     id = tenantId,
                     status = TenantCreationStatus.FAILED,
@@ -182,7 +185,7 @@ class PlatformControllerTest(
     @Test
     fun `GET provisioning status for unknown tenant returns 404`() {
         val tenantId = UUID.randomUUID()
-        every { tenantService.getSignupProvisioningStatus(tenantId) } throws TenantNotFoundException(tenantId)
+        every { platformService.getSignupProvisioningStatus(tenantId) } throws TenantNotFoundException(tenantId)
 
         mvc.get(SIGNUP_STATUS_URL, tenantId).andExpect {
             status { isNotFound() }
@@ -192,7 +195,7 @@ class PlatformControllerTest(
     @Test
     fun `GET slug availability for unused slug returns true`() {
         val slug = "example-bus"
-        every { tenantService.isDesiredSlugAvailable(slug) } returns true
+        every { platformService.isDesiredSlugAvailable(slug) } returns true
 
         mvc.get(SLUG_AVAILABILITY_URL, slug).andExpect {
             status { isOk() }
@@ -204,7 +207,7 @@ class PlatformControllerTest(
     @Test
     fun `GET slug availability for used slug returns false`() {
         val slug = "example-bus"
-        every { tenantService.isDesiredSlugAvailable(slug) } returns false
+        every { platformService.isDesiredSlugAvailable(slug) } returns false
 
         mvc.get(SLUG_AVAILABILITY_URL, slug).andExpect {
             status { isOk() }
@@ -216,7 +219,7 @@ class PlatformControllerTest(
     @Test
     fun `GET slug availability for invalid slug throws exception`() {
         val slug = "invalid-slug"
-        every { tenantService.isDesiredSlugAvailable(slug) } throws IllegalArgumentException("Shop slug must contain only lowercase letters, numbers, and hyphens")
+        every { platformService.isDesiredSlugAvailable(slug) } throws IllegalArgumentException("Shop slug must contain only lowercase letters, numbers, and hyphens")
 
         mvc.get(SLUG_AVAILABILITY_URL, slug).andExpect {
             status { isBadRequest() }
@@ -226,7 +229,7 @@ class PlatformControllerTest(
     @Test
     fun `GET slug availability for empty slug throws exception`() {
         val slug = ""
-        every { tenantService.isDesiredSlugAvailable(slug) } throws IllegalArgumentException("Shop slug must contain only lowercase letters, numbers, and hyphens")
+        every { platformService.isDesiredSlugAvailable(slug) } throws IllegalArgumentException("Shop slug must contain only lowercase letters, numbers, and hyphens")
 
         mvc.get(SLUG_AVAILABILITY_URL, slug).andExpect {
             status { isBadRequest() }
@@ -236,7 +239,7 @@ class PlatformControllerTest(
     @Test
     fun `GET slug availability normalized slug returns availability`() {
         val slug = "Example-Bus"
-        every { tenantService.isDesiredSlugAvailable(slug) } returns true
+        every { platformService.isDesiredSlugAvailable(slug) } returns true
 
         mvc.get(SLUG_AVAILABILITY_URL, slug).andExpect {
             status { isOk() }

@@ -14,18 +14,17 @@ import org.mockito.Mockito.*
 import org.springframework.context.ApplicationEventPublisher
 import java.time.Clock
 import java.time.Instant
-import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.*
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
-class TenantServiceTest {
+class PlatformServiceTest {
     private val repository = mock(TenantRepository::class.java)
     private val eventPublisher = mock(ApplicationEventPublisher::class.java)
     private val clock = Clock.fixed(Instant.parse("2026-01-01T12:00:00Z"), ZoneOffset.UTC)
-    private val service = TenantService(repository, eventPublisher, clock)
+    private val service = PlatformService(repository, eventPublisher, clock)
 
     @Test
     fun `creates tenant and publishes event`() {
@@ -39,7 +38,6 @@ class TenantServiceTest {
         val tenant = ArgumentCaptor.forClass(Tenant::class.java)
         verify(repository).save(tenant.capture())
         assertEquals(TenantStatus.PROVISIONING, tenant.value.status)
-        assertEquals(Instant.parse("2026-01-01T12:00:00Z"), tenant.value.createdAt.toInstant())
         verify(eventPublisher).publishEvent(event)
     }
 
@@ -52,8 +50,6 @@ class TenantServiceTest {
                 "example-bus",
                 "tenant_example_bus",
                 TenantStatus.ACTIVE,
-                OffsetDateTime.now(clock),
-                OffsetDateTime.now(clock)
             )
         )
 
@@ -102,8 +98,6 @@ class TenantServiceTest {
     @Test
     fun `gets signup provisioning status for tenant`() {
         val id = UUID.randomUUID()
-        val createdAt = OffsetDateTime.parse("2026-01-01T12:00:00Z")
-        val updatedAt = OffsetDateTime.parse("2026-01-01T12:05:00Z")
         `when`(repository.findById(id)).thenReturn(
             Optional.of(Tenant(
                 id,
@@ -111,8 +105,6 @@ class TenantServiceTest {
                 "example-bus",
                 "tenant_example_bus",
                 TenantStatus.PROVISIONING,
-                createdAt,
-                updatedAt
             ))
         )
 

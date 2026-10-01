@@ -10,15 +10,12 @@ import app.reisebus.reisebus_api.platform.persistence.TenantRepository
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import java.time.Clock
-import java.time.OffsetDateTime
 import java.util.*
 
 @Service
-class TenantService(
+class PlatformService(
     private val tenantRepository: TenantRepository,
     private val eventPublisher: ApplicationEventPublisher,
-    private val clock: Clock
 ) {
     @Transactional
     fun createTenant(command: CreateTenant): TenantCreated {
@@ -35,7 +32,6 @@ class TenantService(
         }
 
         val tenantId = UUID.randomUUID()
-        val now = OffsetDateTime.now(clock)
         val schemaName = "tenant_${slug}_${tenantId.toString().replace("-", "").take(12)}".replace("-", "_")
         val tenant = tenantRepository.save(
             Tenant(
@@ -44,8 +40,6 @@ class TenantService(
                 slug = slug,
                 schemaName = schemaName,
                 status = TenantStatus.PROVISIONING,
-                createdAt = now,
-                updatedAt = now
             )
         )
 

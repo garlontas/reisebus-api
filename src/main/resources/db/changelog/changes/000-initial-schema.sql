@@ -23,8 +23,7 @@ CREATE INDEX event_publication_by_completion_date_idx ON event_publication (comp
 
 CREATE SCHEMA IF NOT EXISTS platform;
 
-SET
-search_path = platform, public;
+SET search_path = platform, public;
 
 CREATE TABLE tenant
 (
@@ -43,12 +42,15 @@ CREATE INDEX idx_tenants_status ON tenant (status);
 
 CREATE TABLE tenant_domain
 (
-    id         UUID PRIMARY KEY,
-    tenant_id  UUID                     NOT NULL,
-    domain     VARCHAR(255)             NOT NULL,
-    is_primary BOOLEAN                  NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    id                 UUID PRIMARY KEY,
+    tenant_id          UUID                     NOT NULL,
+    domain             VARCHAR(255)             NOT NULL,
+    is_primary         BOOLEAN                  NOT NULL,
+    verification_token VARCHAR(64)              NOT NULL,
+    status             VARCHAR(20)              NOT NULL, -- PENDING, VERIFIED, ACTIVE, FAILED
+    verified_at        TIMESTAMP,
+    created_at         TIMESTAMP WITH TIME ZONE NOT NULL,
+    updated_at         TIMESTAMP WITH TIME ZONE NOT NULL,
     CONSTRAINT fk_tenant_domain_tenant FOREIGN KEY (tenant_id) REFERENCES tenant (id),
     CONSTRAINT uk_tenant_domain_domain UNIQUE (domain)
 );
@@ -57,10 +59,11 @@ CREATE INDEX idx_tenant_domain_tenant_id ON tenant_domain (tenant_id);
 
 CREATE TABLE tenant_settings
 (
-    tenant_id  UUID PRIMARY KEY REFERENCES tenant (id),
-    branding   JSON                     NOT NULL DEFAULT '{}',
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    tenant_id     UUID PRIMARY KEY REFERENCES tenant (id),
+    contact_email VARCHAR(255)             NOT NULL,
+    branding      JSONB                    NOT NULL DEFAULT '{}',
+    created_at    TIMESTAMP WITH TIME ZONE NOT NULL,
+    updated_at    TIMESTAMP WITH TIME ZONE NOT NULL,
     CONSTRAINT fk_tenant_settings_tenant FOREIGN KEY (tenant_id) REFERENCES tenant (id)
 );
 

@@ -6,29 +6,16 @@ import app.reisebus.reisebus_api.platform.domain.TenantStatus
 import app.reisebus.reisebus_api.platform.persistence.TenantRepository
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import org.mockito.kotlin.any
-import org.mockito.kotlin.argumentCaptor
-import org.mockito.kotlin.doThrow
-import org.mockito.kotlin.inOrder
-import org.mockito.kotlin.mock
-import org.mockito.kotlin.never
-import org.mockito.kotlin.times
-import org.mockito.kotlin.verify
-import org.mockito.kotlin.whenever
+import org.mockito.kotlin.*
 import org.springframework.boot.ApplicationArguments
-import java.time.Clock
-import java.time.Instant
-import java.time.OffsetDateTime
-import java.time.ZoneOffset
-import java.util.UUID
+import java.util.*
 import kotlin.test.assertEquals
 
 class TenantMigrationRunnerTest {
     private val tenantRepository = mock<TenantRepository>()
     private val tenantSchemaMigrator = mock<TenantSchemaMigrator>()
-    private val clock = Clock.fixed(Instant.parse("2026-10-01T12:00:00Z"), ZoneOffset.UTC)
     private val args = mock<ApplicationArguments>()
-    private val runner = TenantMigrationRunner(tenantRepository, tenantSchemaMigrator, clock)
+    private val runner = TenantMigrationRunner(tenantRepository, tenantSchemaMigrator)
 
     private val statuses = listOf(TenantStatus.ACTIVE, TenantStatus.PROVISIONING)
 
@@ -57,19 +44,6 @@ class TenantMigrationRunnerTest {
         verify(tenantSchemaMigrator).migrateTenantSchema("schema1")
         verify(tenantSchemaMigrator).migrateTenantSchema("schema2")
         verify(tenantRepository, never()).save(any())
-    }
-
-    @Test
-    fun `marks tenant as failed with current clock time when migration throws`() {
-        givenTenants(createTenant("tenant1", "schema1", TenantStatus.ACTIVE))
-        failFor("schema1")
-
-        runner.run(args)
-
-        val captor = argumentCaptor<Tenant>()
-        verify(tenantRepository).save(captor.capture())
-        assertEquals(TenantStatus.FAILED, captor.firstValue.status)
-        assertEquals(OffsetDateTime.now(clock), captor.firstValue.updatedAt)
     }
 
     @Test
@@ -152,8 +126,6 @@ class TenantMigrationRunnerTest {
             slug = "test-slug",
             schemaName = "schema_test",
             status = TenantStatus.ACTIVE,
-            createdAt = OffsetDateTime.now(clock).minusDays(1),
-            updatedAt = OffsetDateTime.now(clock).minusDays(1)
         )
         givenTenants(tenant)
         failFor("schema_test")
@@ -167,7 +139,6 @@ class TenantMigrationRunnerTest {
             assertEquals("Test Company", companyName)
             assertEquals("test-slug", slug)
             assertEquals("schema_test", schemaName)
-            assertEquals(OffsetDateTime.now(clock).minusDays(1), createdAt)
         }
     }
 
@@ -209,15 +180,12 @@ class TenantMigrationRunnerTest {
     }
 
     private fun createTenant(slug: String, schemaName: String, status: TenantStatus): Tenant {
-        val past = OffsetDateTime.now(clock).minusDays(1)
         return Tenant(
             id = UUID.randomUUID(),
             companyName = "Test Company",
             slug = slug,
             schemaName = schemaName,
             status = status,
-            createdAt = past,
-            updatedAt = past
         )
     }
 }

@@ -1,39 +1,28 @@
 package app.reisebus.reisebus_api.platform.domain
 
-import jakarta.persistence.Column
-import jakarta.persistence.Entity
-import jakarta.persistence.EnumType
-import jakarta.persistence.Enumerated
-import jakarta.persistence.Id
-import jakarta.persistence.Table
-import java.time.OffsetDateTime
-import java.util.UUID
+import app.reisebus.reisebus_api.common.persistence.AuditedEntity
+import jakarta.persistence.*
+import java.util.*
 
 @Entity
 @Table(name = "tenant", schema = "platform")
 class Tenant(
     @Id
-    val id: UUID,
+    var id: UUID,
 
     @Column(name = "company_name", nullable = false, length = 200)
-    val companyName: String,
+    var companyName: String,
 
     @Column(nullable = false, unique = true, length = 63)
-    val slug: String,
+    var slug: String,
 
     @Column(name = "schema_name", nullable = false, unique = true, length = 63)
-    val schemaName: String,
+    var schemaName: String,
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     var status: TenantStatus,
-
-    @Column(name = "created_at", nullable = false)
-    val createdAt: OffsetDateTime,
-
-    @Column(name = "updated_at", nullable = false)
-    var updatedAt: OffsetDateTime
-)
+) : AuditedEntity()
 
 enum class TenantStatus {
     PROVISIONING,

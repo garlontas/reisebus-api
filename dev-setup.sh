@@ -10,6 +10,9 @@ if ! docker info > /dev/null 2>&1; then
     exit 1
 fi
 
+echo "🧹 Cleaning up old database"
+docker compose down -v --remove-orphans
+
 echo "📦 Starting PostgreSQL container..."
 docker compose up -d
 
