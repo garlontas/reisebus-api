@@ -2,24 +2,21 @@ package app.reisebus.reisebus_api.platform.service
 
 import app.reisebus.reisebus_api.platform.api.contract.SignupProvisioningStatus
 import app.reisebus.reisebus_api.platform.api.contract.TenantCreationStatus
-import app.reisebus.reisebus_api.platform.messaging.CreateTenant
 import app.reisebus.reisebus_api.platform.domain.Tenant
 import app.reisebus.reisebus_api.platform.domain.TenantStatus
+import app.reisebus.reisebus_api.platform.messaging.CreateTenant
 import app.reisebus.reisebus_api.platform.persistence.TenantRepository
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertNotNull
 import org.mockito.ArgumentCaptor
-import org.mockito.Mockito.any
-import org.mockito.Mockito.mock
-import org.mockito.Mockito.verify
-import org.mockito.Mockito.`when`
+import org.mockito.Mockito.*
 import org.springframework.context.ApplicationEventPublisher
 import java.time.Clock
 import java.time.Instant
-import java.time.ZoneOffset
 import java.time.OffsetDateTime
-import java.util.Optional
-import java.util.UUID
+import java.time.ZoneOffset
+import java.util.*
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
@@ -140,6 +137,32 @@ class TenantServiceTest {
 
         assertFailsWith<TenantNotFoundException> {
             service.getSignupProvisioningStatus(id)
+        }
+    }
+
+    @Test
+    fun `returns true if slug is available`() {
+        val slug = "Example-Bus"
+        `when`(repository.findBySlug("example-bus")).thenReturn(null)
+
+        assertTrue(service.isDesiredSlugAvailable(slug))
+    }
+
+    @Test
+    fun `returns false if slug is not available`() {
+        val slug = "Example-Bus"
+        `when`(repository.findBySlug("example-bus")).thenReturn(mock(Tenant::class.java))
+
+        assertFalse(service.isDesiredSlugAvailable(slug))
+    }
+
+    @Test
+    fun `throws IllegalArgumentException if slug is invalid`() {
+        val slug = "invalid !slug"
+        `when`(repository.findBySlug(slug)).thenReturn(null)
+
+        assertFailsWith<IllegalArgumentException> {
+            service.isDesiredSlugAvailable(slug)
         }
     }
 }

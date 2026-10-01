@@ -17,4 +17,8 @@ class PlatformExceptionHandler {
     @ExceptionHandler(TenantNotFoundException::class)
     fun handleTenantNotFound(e: TenantNotFoundException): ProblemDetail =
         ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, e.message ?: "Tenant not found")
+
+    @ExceptionHandler(IllegalArgumentException::class)
+    fun handleInvalidSlug(e: IllegalArgumentException): ProblemDetail =
+        ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, e.message ?: "Illegal argument")
 }

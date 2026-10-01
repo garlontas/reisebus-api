@@ -26,7 +26,7 @@ import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.post
-import java.util.UUID
+import java.util.*
 import kotlin.test.assertEquals
 
 @WebMvcTest(PlatformController::class)
@@ -180,13 +180,68 @@ class PlatformControllerTest(
     }
 
     @Test
-    // @Disabled("Enable once the service throws a dedicated TenantNotFoundException mapped to 404 (currently IllegalStateException -> 500)")
     fun `GET provisioning status for unknown tenant returns 404`() {
         val tenantId = UUID.randomUUID()
         every { tenantService.getSignupProvisioningStatus(tenantId) } throws TenantNotFoundException(tenantId)
 
         mvc.get(SIGNUP_STATUS_URL, tenantId).andExpect {
             status { isNotFound() }
+        }
+    }
+
+    @Test
+    fun `GET slug availability for unused slug returns true`() {
+        val slug = "example-bus"
+        every { tenantService.isDesiredSlugAvailable(slug) } returns true
+
+        mvc.get(SLUG_AVAILABILITY_URL, slug).andExpect {
+            status { isOk() }
+            jsonPath("$.slug") { value(slug) }
+            jsonPath("$.available") { value(true) }
+        }
+    }
+
+    @Test
+    fun `GET slug availability for used slug returns false`() {
+        val slug = "example-bus"
+        every { tenantService.isDesiredSlugAvailable(slug) } returns false
+
+        mvc.get(SLUG_AVAILABILITY_URL, slug).andExpect {
+            status { isOk() }
+            jsonPath("$.slug") { value(slug) }
+            jsonPath("$.available") { value(false) }
+        }
+    }
+
+    @Test
+    fun `GET slug availability for invalid slug throws exception`() {
+        val slug = "invalid-slug"
+        every { tenantService.isDesiredSlugAvailable(slug) } throws IllegalArgumentException("Shop slug must contain only lowercase letters, numbers, and hyphens")
+
+        mvc.get(SLUG_AVAILABILITY_URL, slug).andExpect {
+            status { isBadRequest() }
+        }
+    }
+
+    @Test
+    fun `GET slug availability for empty slug throws exception`() {
+        val slug = ""
+        every { tenantService.isDesiredSlugAvailable(slug) } throws IllegalArgumentException("Shop slug must contain only lowercase letters, numbers, and hyphens")
+
+        mvc.get(SLUG_AVAILABILITY_URL, slug).andExpect {
+            status { isBadRequest() }
+        }
+    }
+
+    @Test
+    fun `GET slug availability normalized slug returns availability`() {
+        val slug = "Example-Bus"
+        every { tenantService.isDesiredSlugAvailable(slug) } returns true
+
+        mvc.get(SLUG_AVAILABILITY_URL, slug).andExpect {
+            status { isOk() }
+            jsonPath("$.slug") { value("example-bus") }
+            jsonPath("$.available") { value(true) }
         }
     }
 
@@ -207,5 +262,6 @@ class PlatformControllerTest(
     private companion object {
         const val TENANTS_URL = "/api/platform/signups"
         const val SIGNUP_STATUS_URL = "/api/platform/signups/{id}"
+        const val SLUG_AVAILABILITY_URL = "/api/platform/slug-availability?slug={slug}"
     }
 }

@@ -12,7 +12,7 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Clock
 import java.time.OffsetDateTime
-import java.util.UUID
+import java.util.*
 
 @Service
 class TenantService(
@@ -71,6 +71,13 @@ class TenantService(
             shopSlug = tenant.slug,
             error = null
         )
+    }
+
+    fun isDesiredSlugAvailable(slug: String): Boolean {
+        require(slug.trim().lowercase().matches(SLUG_PATTERN)) {
+            "Shop slug must contain only lowercase letters, numbers, and hyphens"
+        }
+        return tenantRepository.findBySlug(slug.trim().lowercase()) == null
     }
 
     private companion object {
