@@ -1,8 +1,8 @@
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/app
-    username: app
-    password: app
+    url: jdbc:postgresql://localhost:5432/reisebus_dev
+    username: reisebus
+    password: reisebus
   jpa:
     properties:
       hibernate:

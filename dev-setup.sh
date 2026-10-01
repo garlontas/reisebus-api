@@ -11,14 +11,13 @@ if ! docker info > /dev/null 2>&1; then
 fi
 
 echo "📦 Starting PostgreSQL container..."
-cd ./src/main/docker/
-docker-compose up -d
+docker compose up -d
 
 echo "⏳ Waiting for PostgreSQL to be ready..."
 sleep 5
 
 # Check if database is ready
-while ! docker-compose exec -T postgres pg_isready -U reisebus -d reisebus_dev > /dev/null 2>&1; do
+while ! docker compose exec -T postgres pg_isready -U reisebus -d reisebus_dev > /dev/null 2>&1; do
     echo "  ... waiting for database..."
     sleep 2
 done
