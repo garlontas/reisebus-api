@@ -16,6 +16,18 @@ services:
       timeout: 5s
       retries: 5
 
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    container_name: reisebus-keycloak-dev
+    command: [ "start-dev", "--import-realm" ]
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    ports:
+      - "8081:8080"
+    volumes:
+      - ./infra/keycloak:/opt/keycloak/data/import:ro
+
 volumes:
   reisebus-postgres-data:
 
