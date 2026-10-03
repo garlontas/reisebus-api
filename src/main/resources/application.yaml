@@ -1,8 +1,6 @@
 spring:
   application:
     name: reisebus-api
-  datasource:
-  # url/username/password per environment
   jpa:
     open-in-view: false
     hibernate.ddl-auto: none
@@ -13,6 +11,13 @@ spring:
   modulith:
     events:
       republish-outstanding-events-on-restart: true
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${OIDC_ISSUER_URI:http://localhost:8081/realms/reisebus-dev}
 app:
+  base-domain: ${BASE_DOMAIN:http://localhost:8080}
   tenancy:
     migrate-on-startup: false
+    platform-schema: platform

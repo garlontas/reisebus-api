@@ -15,6 +15,7 @@ internal class TenantProvisioning(
     private val tenantRepository: TenantRepository,
     private val tenantSchemaMigrator: TenantSchemaMigrator,
     private val eventPublisher: ApplicationEventPublisher,
+    private val failureRecorder: TenantFailureRecorder
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
 
@@ -45,10 +46,7 @@ internal class TenantProvisioning(
             logger.info("Tenant {} provisioned successfully", event.tenantId)
         } catch (e: Exception) {
             logger.error("Failed to provision tenant {} with schema {}", event.tenantId, event.schemaName, e)
-
-            tenant.status = TenantStatus.FAILED
-            tenantRepository.save(tenant)
-
+            failureRecorder.markFailed(event.tenantId)
             throw e
         }
     }

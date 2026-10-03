@@ -11,6 +11,19 @@ spring:
           batch_size: 10
   liquibase:
     contexts: dev
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${OIDC_ISSUER_URI:http://localhost:8081/realms/reisebus-dev}
+          audiences:
+            - reisebus-api
+springdoc:
+  swagger-ui:
+    oauth:
+      client-id: reisebus-web
+      use-pkce-with-authorization-code-grant: true
 app:
+  base-domain: ${BASE_DOMAIN:localhost:8080}
   tenancy:
     migrate-on-startup: true

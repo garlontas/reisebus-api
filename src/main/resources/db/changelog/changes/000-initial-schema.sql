@@ -67,23 +67,62 @@ CREATE TABLE tenant_settings
     CONSTRAINT fk_tenant_settings_tenant FOREIGN KEY (tenant_id) REFERENCES tenant (id)
 );
 
-CREATE INDEX idx_tenant_settings_tenant_id ON tenant_settings (tenant_id);
-
-CREATE TABLE platform_user
+CREATE TABLE users
 (
-    id            UUID PRIMARY KEY,
-    tenant_id     UUID                     NOT NULL,
-    email         VARCHAR(255)             NOT NULL,
-    password_hash VARCHAR(255)             NOT NULL,
-    first_name    VARCHAR(100)             NOT NULL,
-    last_name     VARCHAR(100)             NOT NULL,
-    role          VARCHAR(30)              NOT NULL,
-    status        VARCHAR(30)              NOT NULL,
-    created_at    TIMESTAMP WITH TIME ZONE NOT NULL,
-    updated_at    TIMESTAMP WITH TIME ZONE NOT NULL,
-    CONSTRAINT fk_user_tenant FOREIGN KEY (tenant_id) REFERENCES tenant (id),
-    CONSTRAINT uk_user_tenant_email UNIQUE (tenant_id, email)
+    id               UUID PRIMARY KEY,
+    email            VARCHAR(255)             NOT NULL,
+    identity_issuer  VARCHAR(255)             NOT NULL,
+    identity_subject VARCHAR(255)             NOT NULL,
+    first_name       VARCHAR(100)             NOT NULL,
+    last_name        VARCHAR(100)             NOT NULL,
+    status           VARCHAR(30)              NOT NULL,
+    created_at       TIMESTAMP WITH TIME ZONE NOT NULL,
+    updated_at       TIMESTAMP WITH TIME ZONE NOT NULL,
+    CONSTRAINT uk_users_email UNIQUE (email),
+    CONSTRAINT uk_users_identity UNIQUE (identity_issuer, identity_subject)
 );
 
-CREATE INDEX idx_user_tenant_id ON platform_user (tenant_id);
-CREATE INDEX idx_user_status ON platform_user (status);
+CREATE INDEX idx_users_status ON users (status);
+
+CREATE TABLE platform_users
+(
+    user_id    UUID PRIMARY KEY,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    CONSTRAINT fk_platform_users_user FOREIGN KEY (user_id) REFERENCES users (id)
+);
+
+CREATE TABLE user_tenants
+(
+    user_id   UUID        NOT NULL,
+    tenant_id UUID        NOT NULL,
+    role      VARCHAR(30) NOT NULL,
+    PRIMARY KEY (user_id, tenant_id),
+    CONSTRAINT fk_user_tenants_user FOREIGN KEY (user_id) REFERENCES users (id),
+    CONSTRAINT fk_user_tenants_tenant FOREIGN KEY (tenant_id) REFERENCES tenant (id)
+);
+
+CREATE TABLE invitation
+(
+    id          UUID PRIMARY KEY,
+    tenant_id   UUID                     NOT NULL,
+    email       VARCHAR(255)             NOT NULL,
+    role        VARCHAR(30)              NOT NULL,
+    token_hash  VARCHAR(64)              NOT NULL, -- nur den SHA-256-Hash speichern, nie den Token selbst
+    expires_at  TIMESTAMP WITH TIME ZONE NOT NULL,
+    accepted_at TIMESTAMP WITH TIME ZONE,
+    created_at  TIMESTAMP WITH TIME ZONE NOT NULL,
+    CONSTRAINT fk_invitation_tenant FOREIGN KEY (tenant_id) REFERENCES tenant (id),
+    CONSTRAINT uk_invitation_token_hash UNIQUE (token_hash)
+);
+
+CREATE INDEX idx_invitation_tenant_id ON invitation (tenant_id);
+
+--rollback DROP TABLE invitation;
+--rollback DROP TABLE user_tenants;
+--rollback DROP TABLE platform_users;
+--rollback DROP TABLE users;
+--rollback DROP TABLE tenant_settings;
+--rollback DROP TABLE tenant_domain;
+--rollback DROP TABLE tenant;
+--rollback DROP SCHEMA platform;

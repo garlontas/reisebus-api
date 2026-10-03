@@ -1,5 +1,6 @@
 package app.reisebus.reisebus_api.platform.service
 
+import app.reisebus.reisebus_api.config.RESERVED_SLUGS
 import app.reisebus.reisebus_api.platform.api.contract.SignupProvisioningStatus
 import app.reisebus.reisebus_api.platform.api.contract.TenantCreationStatus
 import app.reisebus.reisebus_api.platform.domain.Tenant
@@ -9,13 +10,13 @@ import app.reisebus.reisebus_api.platform.persistence.TenantRepository
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertNotNull
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.MethodSource
 import org.mockito.ArgumentCaptor
 import org.mockito.Mockito.*
 import org.springframework.context.ApplicationEventPublisher
-import java.time.Clock
-import java.time.Instant
-import java.time.ZoneOffset
 import java.util.*
+import java.util.stream.Stream
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
@@ -23,8 +24,7 @@ import kotlin.test.assertTrue
 class PlatformServiceTest {
     private val repository = mock(TenantRepository::class.java)
     private val eventPublisher = mock(ApplicationEventPublisher::class.java)
-    private val clock = Clock.fixed(Instant.parse("2026-01-01T12:00:00Z"), ZoneOffset.UTC)
-    private val service = PlatformService(repository, eventPublisher, clock)
+    private val service = PlatformService(repository, eventPublisher)
 
     @Test
     fun `creates tenant and publishes event`() {
@@ -77,6 +77,33 @@ class PlatformServiceTest {
         assertFailsWith<IllegalArgumentException> {
             service.createTenant(CreateTenant("Reisebus GmbH", "Example-Bus!"))
         }
+    }
+
+    @Test
+    fun `rejects slug with less than 3 characters`() {
+        assertFailsWith<IllegalArgumentException> {
+            service.createTenant(CreateTenant("Reisebus GmbH", "ex"))
+        }
+    }
+
+    @Test
+    fun `rejects slug with more than 40 characters`() {
+        assertFailsWith<IllegalArgumentException> {
+            service.createTenant(CreateTenant("Reisebus GmbH", "e".repeat(41)))
+        }
+    }
+
+    @ParameterizedTest
+    @MethodSource("reservedSlugs")
+    fun `rejects reserved slug`(slug: String) {
+        assertFailsWith<IllegalArgumentException> {
+            service.createTenant(CreateTenant("Reisebus GmbH", slug))
+        }
+    }
+
+    companion object {
+        @JvmStatic
+        fun reservedSlugs(): Stream<String> = RESERVED_SLUGS.stream()
     }
 
     @Test

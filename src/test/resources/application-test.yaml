@@ -1,6 +1,11 @@
 spring:
   liquibase:
     contexts: test
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${OIDC_ISSUER_URI:http://localhost:8081/realms/reisebus-dev}
 app:
   tenancy:
     migrate-on-startup: false

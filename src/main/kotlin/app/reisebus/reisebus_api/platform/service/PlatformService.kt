@@ -1,5 +1,6 @@
 package app.reisebus.reisebus_api.platform.service
 
+import app.reisebus.reisebus_api.config.RESERVED_SLUGS
 import app.reisebus.reisebus_api.platform.api.contract.SignupProvisioningStatus
 import app.reisebus.reisebus_api.platform.api.contract.TenantCreationStatus
 import app.reisebus.reisebus_api.platform.domain.Tenant
@@ -26,6 +27,8 @@ class PlatformService(
         require(slug.matches(SLUG_PATTERN)) {
             "Shop slug must contain only lowercase letters, numbers, and hyphens"
         }
+        require(slug.length in 3..40) { "Shop slug must be 3-40 characters" }
+        require(slug !in RESERVED_SLUGS) { "Shop slug is reserved" }
 
         if (tenantRepository.findBySlug(slug) != null) {
             throw DuplicateShopSlugException(slug)

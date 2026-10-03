@@ -38,6 +38,9 @@ dependencies {
     implementation("tools.jackson.module:jackson-module-kotlin")
     implementation("org.springframework.security:spring-security-web")
     implementation("org.springframework.security:spring-security-config")
+    implementation("org.springframework.boot:spring-boot-starter-oauth2-resource-server")
+    implementation("org.springframework.security:spring-security-oauth2-resource-server")
+    implementation("org.springframework.security:spring-security-oauth2-jose")
     implementation("org.springframework.modulith:spring-modulith-starter-jpa")
     
     developmentOnly("org.springframework.boot:spring-boot-devtools")
